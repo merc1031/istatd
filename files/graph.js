@@ -779,8 +779,7 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     // about to do a bad thing with the plot array.  assuming data
     // arrays are the same length and has same start time and interval
     var data = this._lastRenderData;
-    var plotTimes = [{'low':[], 'high':[], 'line':[]}];
-//    var labels = ['time'];
+    var plotTimes = [];
     var labels = [];
 
     var interval = data.interval;
@@ -793,9 +792,7 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     var i = start;
     while ( i < stop ) {
         var d = new Date(i*1000).getTime();
-        plotTimes[0]['low'].push([d])
-        plotTimes[0]['high'].push([d])
-        plotTimes[0]['line'].push([d])
+        plotTimes.push([d])
         i += interval;
     }
     if(stop - start <= 0) {
@@ -813,20 +810,17 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     var ann_minval = minimum;
     var ann_mintime = null;
 
+    var arearepresentation = [];
     //  "errorBars" really means sdev
     //  "customBars" really means min/max
     //  "noBars" means no bars :-)
     if (format == 'noBars') {
-        pushfn = function(plot, plotHigh, plotLow, bucket) {
+        pushfn = function(plot, bucket) {
             if (!bucket) {
-                plot.push(NaN);
-                plotHigh.push(NaN);
-                plotLow.push(NaN);
+                plot.push.apply(plot, [NaN]);
             }
             else {
-                plot.push(bucket.avg);
-                plotHigh.push(NaN);
-                plotLow.push(NaN);
+                plot.push.apply(plot, [bucket.avg]);
                 minimum = Math.min(bucket.avg, minimum);
                 maximum = Math.max(bucket.avg, maximum);
                 minVal = Math.min(bucket.avg, minVal);
@@ -836,16 +830,13 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     
     }
     else if (format == 'errorBars') {
-        pushfn = function(plot, plotHigh, plotLow, bucket) {
+        arearepresentation = [{representation:"symmetric"}];
+        pushfn = function(plot, bucket) {
             if (!bucket) {
-                plot.push(NaN);
-                plotHigh.push(NaN);
-                plotLow.push(NaN);
+                plot.push.apply(plot, [NaN, NaN]);
             }
             else {
-                plot.push(bucket.avg);
-                plotHigh.push(bucket.avg + bucket.sdev);
-                plotLow.push(bucket.avg - bucket.sdev);
+                plot.push.apply(plot, [bucket.avg, bucket.sdev]);
                 minimum = Math.min(bucket.avg-bucket.sdev, minimum);
                 maximum = Math.max(bucket.avg+bucket.sdev, maximum);
                 minVal = Math.min(bucket.avg, minVal);
@@ -854,16 +845,13 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
         };
     } 
     else {
-        pushfn = function(plot, plotHigh, plotLow, bucket) {
+        arearepresentation = [{representation:"asymmetric"}];
+        pushfn = function(plot, bucket) {
             if (!bucket) {
-                plot.push(NaN);
-                plotHigh.push(NaN);
-                plotLow.push(NaN);
+                plot.push.apply(plot, [NaN, NaN, NaN]);
             }
             else {
-                plot.push(bucket.avg);
-                plotHigh.push(bucket.max);
-                plotLow.push(bucket.min);
+                plot.push.apply(plot, [bucket.avg, bucket.min, bucket.max]);
                 minimum = Math.min(bucket.min, minimum);
                 maximum = Math.max(bucket.max, maximum);
                 minVal = Math.min(bucket.min, minVal);
@@ -871,69 +859,29 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
             }
         };
     }
-//    if (format == 'noBars') {
-//        pushfn = function(plot, bucket) {
-//            if (!bucket) {
-//                plot.push([NaN]);
-//            }
-//            else {
-//                plot.push([bucket.avg]);
-//                minimum = Math.min(bucket.avg, minimum);
-//                maximum = Math.max(bucket.avg, maximum);
-//                minVal = Math.min(bucket.avg, minVal);
-//                gotdata = true;
-//            }
-//        };
-//    }
-//    else if (format == 'errorBars') {
-//        pushfn = function(plot, bucket) {
-//            if (!bucket) {
-//                plot.push([NaN, NaN]);
-//            }
-//            else {
-//                plot.push([bucket.avg, bucket.sdev]);
-//                minimum = Math.min(bucket.avg-bucket.sdev, minimum);
-//                maximum = Math.max(bucket.avg+bucket.sdev, maximum);
-//                minVal = Math.min(bucket.avg, minVal);
-//                gotdata = true;
-//            }
-//        };
-//    }
-//    else {
-//        pushfn = function(plot, bucket) {
-//            if (!bucket) {
-//                plot.push([NaN, NaN, NaN]);
-//            }
-//            else {
-//                plot.push([bucket.min, bucket.avg, bucket.max]);
-//                minimum = Math.min(bucket.min, minimum);
-//                maximum = Math.max(bucket.max, maximum);
-//                minVal = Math.min(bucket.min, minVal);
-//                gotdata = true;
-//            }
-//        };
-//    }
-    var annotations = [];
+
     var dataIntermediate = [];
+    var annotations = [];
     jQuery.each(data, function(key,value) {
         var buckets = data[key]['data'];
         if (buckets) {
-            dataIntermediate.push($.extend(true, [], plotTimes[0]));
             var ann_min = Math.pow(2, 100);
             var ann_max = -ann_min;
             var ann_min_ts = null;
             var ann_max_ts = null;
             var bidx = 0;
 
+            dataIntermediate.push($.extend(true, [], plotTimes));
+
             var newest = dataIntermediate[dataIntermediate.length - 1];
-            jQuery.each(newest['line'], function(i, plot) {
+            jQuery.each(newest, function(i, plot) {
                 // get next bucket of data to insert
                 while ((bidx < buckets.length) && (buckets[bidx].time == 0)) {
                     bidx++;
                 }
 
                 if (bidx >= buckets.length) {
-                    pushfn(plot, newest['high'][i], newest['low'][i], null);
+                    pushfn(plot, null);
                 }
                 else {
                     var bucket = buckets[bidx];
@@ -949,11 +897,11 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
                     }
 
                     if (btime == timestamp) {
-                        pushfn(plot, newest['high'][i], newest['low'][i], bucket);
+                        pushfn(plot, bucket);
                         bidx += 1;
                     }
                     else {
-                        pushfn(plot, newest['high'][i], newest['low'][i], null);
+                        pushfn(plot, null);
                     }
                 }
             });
@@ -1006,75 +954,9 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
         minimum = 0;
     }
 
-    // If we have no interaction model yet, define one, by copying the default dygraph.
-    // We need to do this to provide a few extra overrides in spots to dygraph behaviour.
-    if(!theInteractionModel) {
-        var model = {};
-        theInteractionModel = model;
-
-        var defaultModel = Dygraph.Interaction.defaultModel;
-        for(k in defaultModel) {
-            model[k] = defaultModel[k];
-        }
-
-        // The mouse up event tracks the domain of the graph,
-        // so we can use that for a zoomCallback that will fire directly after.
-        model.lastDomain = {};
-        model.mouseup = guard(function(event, g, context) {
-            model.lastDomain[g] = g.xAxisRange().slice(0);
-            defaultModel.mouseup(event, g, context);
-        });
-
-        // Double click to restore zoom *AND* restore original time interval.
-        model.dblclick = guard(function(event, g, context) {
-            zoomOutIntervals();
-            defaultModel.dblclick(event, g, context);
-        });
-    }
-
     theGrid.$self.find('canvas').css('opacity', 1.0);
 
-    this._destroyDygraph();
-    var params = {
-            'valueRange': [minimum, maximum],
-            'labelsDiv': $div.parents('.graph').find('.legend').get()[0],
-            'legend': 'always',
-            'labels': labels,
-            'showLabelsOnHighlight': false,
-            'zoomCallback': function(minX, maxX, yRanges) {
-                // We need to use the interactionModel's stored domain to check if the X axis is changed.
-                // Y zooming doesn't change the X axis, so this is reliable.
-                var domain = theInteractionModel.lastDomain[g] || [NaN, NaN];
-
-                // If we're zooming on the x, then we need to fetch finer resolution data.
-                // Would have used g.isZoomed('x'), but that will always return false,
-                // except for the newest Dygraph instance which gets the correct values.
-                // This is a cheesy workaround in the meantime!
-                if(minX != domain[0] || maxX != domain[1]) {
-                    theGrid.$self.find('canvas').css('opacity', 0.5);
-                    theCurrentDates.start = new Date(minX);
-                    theCurrentDates.stop = new Date(maxX);
-                    calcReloadInterval();
-                    refresh();
-                }
-            },
-            'interactionModel': theInteractionModel,
-            'labelsKMB': true,
-            'pixelsPerYLabel': 20
-        };
-    if (format == 'errorBars') {
-        params.errorBars = true;
-    }
-    else if (format == 'customBars') {
-        params.customBars = true;
-    }
-
-//    plotLowBar
-//
-    var dataset = [
-//        { label}
-//    
-    ];
+    var dataset = [];
 
     var color = function(i) {
         return "rgb(" + (((i % 4) / 3) * 255) + "," + (((Math.min(Math.max(i-4, 0),4) % 4) / 3) * 255) + ",50)";
@@ -1082,20 +964,14 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     for( var i =0; i< labels.length; i++) {
         var plotData = dataIntermediate[i];
         dataset.push(
-            {label: labels[i], data: plotData['line'], lines: {show:true}, color: color(i), id: labels[i] + "root"}
-        );
-        dataset.push(
-            {id: labels[i] + "low", data: plotData['low'], lines: {show:true, lineWidth: 0, fill: 0.2}, color: color(i), fillBetween: labels[i] + "root"}
-        );
-        dataset.push(
-            {id: labels[i] + "high", data: plotData['high'], lines: {show:true, lineWidth: 0, fill: 0.2}, color: color(i), fillBetween: labels[i] + "root"}
+            {label: labels[i], fillArea: arearepresentation, data: plotData, lines: {show:true}, color: color(i), id: labels[i] + "root"}
         );
     }
 
     var options = {
         xaxis: { mode: "time" },
         selection : {
-            mode: "x"
+            mode: "xy"
         },
         yaxis: {
             min: minimum,
@@ -1105,6 +981,10 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
             container: $div.parents('.graph').find('.legend').get()[0]
         }
     };
+    $div.off("dblclick");
+    $div.on("dblclick", guard(function(event, g, context) {
+            zoomOutIntervals();
+    }));
 
     $div.off("plotselected");
     $div.on("plotselected", function(event, ranges) {
@@ -1112,6 +992,10 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
                     xaxis: {
                         min: ranges.xaxis.from,
                         max: ranges.xaxis.to
+                    },
+                    yaxis: {
+                        min: ranges.yaxis.from,
+                        max: ranges.yaxis.to
                     }
                 }));
         theCurrentDates.start = new Date(ranges.xaxis.from);
@@ -1120,13 +1004,7 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
         refresh();
     });
     $.plot($div, dataset, options);
-//    var g = this._dygraph = new Dygraph(
-//        // containing div
-//        $div[0],
-//        plotTimes,
-//        params
-//    );
-//    g.setAnnotations(annotations);
+
     $('.summary', this.$self).html("<span class='nobreak'>Maximum: " + ann_maxval + " at " +
         (new Date(ann_maxtime)).toLocaleDateString() + "</span><span class='nobreak'> Minimum: " + 
         ann_minval + " at " + (new Date(ann_mintime)).toLocaleDateString() + "</span>");
