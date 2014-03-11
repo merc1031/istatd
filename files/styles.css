@@ -718,6 +718,17 @@ span.settingsbox:before {
     background: transparent url('/files/graph-settings.png') no-repeat;
 }
 
+div.graph span.moreoptions {
+    z-index: 120;
+}
+span.moreoptions {
+    right: 85px;
+    top: 5px;
+}
+span.moreoptions:before {
+    background: transparent url('/files/more-options.gif') no-repeat;
+}
+
 div.graph span.summarybox {
     z-index: 130;
 }

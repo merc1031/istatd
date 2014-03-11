@@ -715,6 +715,9 @@ function GraphSurface($self, parWig) {
     $('span.settingsbox', $self).click(guard(function() {
         self.showSettings();
     }));
+    $('span.moreoptions', $self).click(guard(function() {
+        self.moreOptions();
+    }));
     $('span.summarybox', $self).click(guard(function() {
         self.toggleSummary();
     }));
@@ -786,6 +789,7 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     var start = data.start;
     var stop = data.stop;
     var format = this._format || 'noBars';
+    var stacking = this._stacking || 'no';
     var lockatzero = false;
 
     // initialize data array with Date objects
@@ -859,6 +863,8 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
             }
         };
     }
+    var minimums = [];
+    var maximums = [];
 
     var dataIntermediate = [];
     var annotations = [];
@@ -926,9 +932,20 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
             if (ann_maxval == ann_max) {
                 ann_maxtime = ann_max_ts;
             }
+            minimums.push(ann_minval);
+            maximums.push(ann_maxval);
         }
     });
 
+    if (stacking == "stacked") {
+        for (var t1 =0; t1 < minimums.length; t1++) {
+            minimum = Math.min(minimum, minimums[t1]);
+        }
+        maximum = 0;
+        for (var t2 =0; t2 < maximums.length; t2++) {
+            maximum += maximums[t2];
+        }
+    }
     // Doing Dygraph's job of calculating the data range properly,
     // so that error bars don't go outside the plotted data set.
     if (!gotdata) {
@@ -979,8 +996,18 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
         },
         legend: {
             container: $div.parents('.graph').find('.legend').get()[0]
-        }
+        },
     };
+
+    if (stacking == "stacked") {
+        options = $.extend(true, {}, options, {series: {
+            stack: stacking == "stacked" ? true : 0,
+            lines: {
+                show: stacking == "stacked" ? true : false,
+                fill: true
+            }
+        }});
+    }
     $div.off("dblclick");
     $div.on("dblclick", guard(function(event, g, context) {
             zoomOutIntervals();
@@ -1033,6 +1060,19 @@ GraphSurface.prototype.showSettings = function GraphSurface_showSettings() {
     function(v) {
         console.log("Selected format: " + v);
         self._format = v;
+        self.repaint();
+    });
+}
+GraphSurface.prototype.moreOptions = function GraphSurface_moreOptions() {
+    var self = this;
+    choiceDialog(    "Choose display format for these graphs.",
+    {
+        'no': "Not Stacked",
+        'stacked': "Stacked"
+    },
+    function(v) {
+        console.log("Selected format: " + v);
+        self._stacking = v;
         self.repaint();
     });
 }
@@ -1222,7 +1262,7 @@ function GraphGrid(id) {
     new Widget(this, $('#' + id), null);
 }
 GraphGrid.prototype.newGraph = guard(function GraphGrid_newGraph() {
-    var $ret = $("<div class='graph'><span title='Show/Hide summary' class='summarybox buttonbox'/><span title='Settings for display' class='settingsbox buttonbox'/><span title='Restore default zoom' class='zoomoutbox buttonbox'/><span title='Close' class='closebox buttonbox'/><div class='legend'/><div class='graphdiv'></div><div class='summary'></div></div>");
+    var $ret = $("<div class='graph'><span title='Settings for display' class='moreoptions buttonbox'/><span title='Show/Hide summary' class='summarybox buttonbox'/><span title='Settings for display' class='settingsbox buttonbox'/><span title='Restore default zoom' class='zoomoutbox buttonbox'/><span title='Close' class='closebox buttonbox'/><div class='legend'/><div class='graphdiv'></div><div class='summary'></div></div>");
     $ret.width(theGraphSize.width);
 
     this.$self.append($ret);
