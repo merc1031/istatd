@@ -827,6 +827,9 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
                 plot.push(bucket.avg);
                 plotHigh.push(NaN);
                 plotLow.push(NaN);
+                minimum = Math.min(bucket.avg, minimum);
+                maximum = Math.max(bucket.avg, maximum);
+                minVal = Math.min(bucket.avg, minVal);
                 gotdata = true;
             }
         };
@@ -843,6 +846,9 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
                 plot.push(bucket.avg);
                 plotHigh.push(bucket.avg + bucket.sdev);
                 plotLow.push(bucket.avg - bucket.sdev);
+                minimum = Math.min(bucket.avg-bucket.sdev, minimum);
+                maximum = Math.max(bucket.avg+bucket.sdev, maximum);
+                minVal = Math.min(bucket.avg, minVal);
                 gotdata = true;
             }
         };
@@ -858,6 +864,9 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
                 plot.push(bucket.avg);
                 plotHigh.push(bucket.max);
                 plotLow.push(bucket.min);
+                minimum = Math.min(bucket.min, minimum);
+                maximum = Math.max(bucket.max, maximum);
+                minVal = Math.min(bucket.min, minVal);
                 gotdata = true;
             }
         };
@@ -1087,6 +1096,13 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
         xaxis: { mode: "time" },
         selection : {
             mode: "x"
+        },
+        yaxis: {
+            min: minimum,
+            max: maximum
+        },
+        legend: {
+            container: $div.parents('.graph').find('.legend').get()[0]
         }
     };
 
@@ -1335,10 +1351,10 @@ GraphGrid.prototype.newGraph = guard(function GraphGrid_newGraph() {
     var surface = new GraphSurface($ret, theGrid.widget);
 
     $ret.find('.legend').mouseover(function() {
-        $('span', this).each(function(i, elem) {
+        $('tr', this).each(function(i, elem) {
             $(elem).unbind();
             $(elem).click(guard(function () {
-                surface.toggleSeries($(this).html().slice(1));
+                surface.toggleSeries($('.legendLabel', this).html().slice(0));
             }));
         });
     });
