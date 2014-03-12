@@ -1,3 +1,9 @@
 [submodule "files/flot_toy/flot-fillArea-plugin"]
 	path = files/flot_toy/flot-fillArea-plugin
 	url = git@github.com:analoureiro99/flot-fillArea-plugin.git
+[submodule "files/flot_toy/date.format"]
+	path = files/flot_toy/date.format
+	url = https://github.com/jacwright/date.format
+[submodule "files/flot_toy/underscore"]
+	path = files/flot_toy/underscore
+	url = https://github.com/jashkenas/underscore.git

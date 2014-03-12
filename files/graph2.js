@@ -20,11 +20,6 @@ if(!console.log) {
         }
     }
 }
-//if (!Array.prototype.last){
-//    Array.prototype.last = function(){
-//        return this[this.length - 1];
-//    };
-//};
 
 /* Event handlers and other calls into this application
    from the surrounding DOM should be wrapped in guard().
@@ -832,7 +827,7 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
                 gotdata = true;
             }
         };
-    
+
     }
     else if (format == 'errorBars') {
         arearepresentation = [{representation:"symmetric"}];
@@ -878,9 +873,10 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
             var ann_max_ts = null;
             var bidx = 0;
 
+            // we are cloning our date range and pushing it onto a collector
             dataIntermediate.push($.extend(true, [], plotTimes));
 
-            var newest = dataIntermediate[dataIntermediate.length - 1];
+            var newest = _.last(dataIntermediate);
             jQuery.each(newest, function(i, plot) {
                 // get next bucket of data to insert
                 while ((bidx < buckets.length) && (buckets[bidx].time == 0)) {
@@ -933,12 +929,16 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
             if (ann_maxval == ann_max) {
                 ann_maxtime = ann_max_ts;
             }
-            minimums.push(ann_minval);
-            maximums.push(ann_maxval);
+
+            if (stacking == "stacked") {
+                minimums.push(ann_minval);
+                maximums.push(ann_maxval);
+            }
         }
     });
 
     if (stacking == "stacked") {
+        //add a 0 value entry for stacking. this has no net effect on stacking, but will help to fill to the zero line nicely
         dataIntermediate.push($.extend(true, [], plotTimes));
 
         var newest = dataIntermediate[dataIntermediate.length - 1];
@@ -949,6 +949,7 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
         minimums.push(0);
         maximums.push(0);
 
+        // calculate the absolute bounds for stacked graphs (lowest min, additive max)
         for (var t1 =0; t1 < minimums.length; t1++) {
             minimum = Math.min(minimum, minimums[t1]);
         }
@@ -989,12 +990,8 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     var color = function(i) {
         return "rgb(" + (((i % 4) / 3) * 255) + "," + (((Math.min(Math.max(i-4, 0),4) % 4) / 3) * 255) + ",50)";
     };
-//    for( var i =0; i< labels.length; i++) {
-//        var plotData = dataIntermediate[i];
-//        dataset.push(
-//            {label: labels[i], fillArea: arearepresentation, data: plotData, lines: {show:true}, color: color(i), id: labels[i] + "root"}
-//        );
-//    }
+
+    // setup per line options 
     for( var i =0; i< dataIntermediate.length; i++) {
         var plotData = dataIntermediate[i];
         if (i < labels.length) {
@@ -1018,11 +1015,11 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
                 dataset.push(
                     {fillArea: arearepresentation, data: plotData, lines: {show:false}, color: color(i)}
                 );
-            
             }
         }
     }
 
+    // setup graph options
     var options = {
         xaxis: { mode: "time" },
         selection : {
@@ -1035,8 +1032,12 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
         legend: {
             container: $div.parents('.graph').find('.legend').get()[0]
         },
+        grid: {
+            hoverable: true
+        }
     };
 
+    //if we are sticking push on the stacking options
     if (stacking == "stacked") {
         options = $.extend(true, {}, options, {series: {
             stack: true,
@@ -1051,8 +1052,24 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
             zoomOutIntervals();
     }));
 
+    //when hovering over a close by line show us its current value (only shows if summary is shown)
+    $div.off("plothover");
+    $div.on("plothover", function($currentValueDiv) { return function(event, pos, item) {
+        if (item !== null) {
+            $currentValueDiv.text(item.series.label + " " + item.datapoint[1]+ " @ " + new Date(item.datapoint[0]).format('h:i:s M d') );
+        }
+
+    }}($('.current_value', this.$self)));
+
+    // clear summary when we leave the entire div
+    $div.off("mouseout");
+    $div.on("mouseout", function($currentValueDiv) { return function() {
+        $currentValueDiv.text("");
+    }}($('.current_value', this.$self)));
+
+    // zoom callback
     $div.off("plotselected");
-    $div.on("plotselected", function(event, ranges) {
+    $div.on("plotselected", function(old_min, old_max) { return function(event, ranges) {
         plot = $.plot($div, dataset, $.extend(true, {}, options, {
                     xaxis: {
                         min: ranges.xaxis.from,
@@ -1063,11 +1080,15 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
                         max: ranges.yaxis.to
                     }
                 }));
-        theCurrentDates.start = new Date(ranges.xaxis.from);
-        theCurrentDates.stop = new Date(ranges.xaxis.to);
-        calcReloadInterval();
-        refresh();
-    });
+        if (ranges.xaxis.from != old_min || ranges.xaxis.to != old_max) {
+            theCurrentDates.start = new Date(ranges.xaxis.from);
+            theCurrentDates.stop = new Date(ranges.xaxis.to);
+            calcReloadInterval();
+            refresh();
+        }
+    }}(plotTimes[0][0], plotTimes[plotTimes.length - 1][0]));
+
+
     $.plot($div, dataset, options);
 
     $('.summary', this.$self).html("<span class='nobreak'>Maximum: " + ann_maxval + " at " +
@@ -1116,6 +1137,7 @@ GraphSurface.prototype.moreOptions = function GraphSurface_moreOptions() {
 }
 GraphSurface.prototype.toggleSummary = function GraphSurface_toggleSummary() {
     $('.summary', this.$self).toggleClass('visible');
+    $('.current_value', this.$self).toggleClass('visible');
 }
 
 
@@ -1300,7 +1322,7 @@ function GraphGrid(id) {
     new Widget(this, $('#' + id), null);
 }
 GraphGrid.prototype.newGraph = guard(function GraphGrid_newGraph() {
-    var $ret = $("<div class='graph'><span title='Settings for display' class='moreoptions buttonbox'/><span title='Show/Hide summary' class='summarybox buttonbox'/><span title='Settings for display' class='settingsbox buttonbox'/><span title='Restore default zoom' class='zoomoutbox buttonbox'/><span title='Close' class='closebox buttonbox'/><div class='legend'/><div class='graphdiv'></div><div class='summary'></div></div>");
+    var $ret = $("<div class='graph'><span title='Settings for display' class='moreoptions buttonbox'/><span title='Show/Hide summary' class='summarybox buttonbox'/><span title='Settings for display' class='settingsbox buttonbox'/><span title='Restore default zoom' class='zoomoutbox buttonbox'/><span title='Close' class='closebox buttonbox'/><div class='legend'/><div class='graphdiv'></div><div class='summary'></div><div class='current_value'></div></div>");
     $ret.width(theGraphSize.width);
 
     this.$self.append($ret);
