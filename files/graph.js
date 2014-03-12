@@ -790,6 +790,7 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     var stop = data.stop;
     var format = this._format || 'noBars';
     var stacking = this._stacking || 'no';
+    format = stacking == "stacked" ? 'noBars' : format;
     var lockatzero = false;
 
     // initialize data array with Date objects
@@ -938,6 +939,16 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     });
 
     if (stacking == "stacked") {
+        dataIntermediate.push($.extend(true, [], plotTimes));
+
+        var newest = dataIntermediate[dataIntermediate.length - 1];
+        var bucket = { avg : 0, min: 0, max: 0, sdev: 0};
+        jQuery.each(newest, function(i, plot) {
+            pushfn(plot, bucket);
+        });
+        minimums.push(0);
+        maximums.push(0);
+
         for (var t1 =0; t1 < minimums.length; t1++) {
             minimum = Math.min(minimum, minimums[t1]);
         }
@@ -978,11 +989,38 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
     var color = function(i) {
         return "rgb(" + (((i % 4) / 3) * 255) + "," + (((Math.min(Math.max(i-4, 0),4) % 4) / 3) * 255) + ",50)";
     };
-    for( var i =0; i< labels.length; i++) {
+//    for( var i =0; i< labels.length; i++) {
+//        var plotData = dataIntermediate[i];
+//        dataset.push(
+//            {label: labels[i], fillArea: arearepresentation, data: plotData, lines: {show:true}, color: color(i), id: labels[i] + "root"}
+//        );
+//    }
+    for( var i =0; i< dataIntermediate.length; i++) {
         var plotData = dataIntermediate[i];
-        dataset.push(
-            {label: labels[i], fillArea: arearepresentation, data: plotData, lines: {show:true}, color: color(i), id: labels[i] + "root"}
-        );
+        if (i < labels.length) {
+
+            if (format == "noBars") {
+                dataset.push(
+                    {label: labels[i], data: plotData, lines: {show:true}, color: color(i)}
+                );
+            }else {
+                dataset.push(
+                    {label: labels[i], fillArea: arearepresentation, data: plotData, lines: {show:true}, color: color(i)}
+                );
+            }
+        }
+        else {
+            if (format == "noBars") {
+                dataset.push(
+                    {data: plotData, lines: {show:false}, color: color(i)}
+                );
+            }else {
+                dataset.push(
+                    {fillArea: arearepresentation, data: plotData, lines: {show:false}, color: color(i)}
+                );
+            
+            }
+        }
     }
 
     var options = {
@@ -1001,9 +1039,9 @@ GraphSurface.prototype.repaint = guard(function GraphSurface_repaint() {
 
     if (stacking == "stacked") {
         options = $.extend(true, {}, options, {series: {
-            stack: stacking == "stacked" ? true : 0,
+            stack: true,
             lines: {
-                show: stacking == "stacked" ? true : false,
+                show: true,
                 fill: true
             }
         }});
