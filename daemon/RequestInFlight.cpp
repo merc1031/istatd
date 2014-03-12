@@ -160,6 +160,9 @@ void RequestInFlight::do_GET(std::string const &url, std::map<std::string, std::
     if (url == "/") {
         serveFile("index.html");
     }
+    if (url == "/index2.html") {
+        serveFile("index2.html");
+    }
     else if (url.substr(0, 7) == "/files/") {
         serveFile(url.substr(7));
     }
